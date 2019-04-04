@@ -186,17 +186,22 @@ def get_cold_start_matrix(actions,match_user_row,match_feature_columns,match_mov
     test_matrix = shape_corrector(test_matrix,max(match_feature_columns.values())+1,max(match_user_row.values())+1)
     # ToDo - мб нужно будет как-то сложить матрицу атрибутов, но вроде не надо
     
-    
-    new_user_matrix = coo_matrix((ones_user,(row_user,col_user)))
-    new_match_user_row = {i:ii for ii,i in enumerate(ind_user)}
-    new_match_row_user = {ii:i for ii,i in enumerate(ind_user)}
-    new_user_matrix = shape_corrector(new_user_matrix,max(match_feature_columns.values())+1,max(new_match_user_row.values())+1)
-    
-    
-    new_match_row_movie = {ii:i for ii,i in enumerate(new_movie_buf)}
-    new_match_movie_row = {i:ii for ii,i in enumerate(new_movie_buf)}
-    
-    
+    if len(ones_user) != 0:
+        new_user_matrix = coo_matrix((ones_user,(row_user,col_user)))
+        new_match_user_row = {i:ii for ii,i in enumerate(ind_user)}
+        new_match_row_user = {ii:i for ii,i in enumerate(ind_user)}
+        new_user_matrix = shape_corrector(new_user_matrix,max(match_feature_columns.values())+1,max(new_match_user_row.values())+1)
+    else:
+        new_user_matrix = coo_matrix((len(row_),len(col_)))
+        new_match_user_row = {}
+        new_match_row_user = {}
+        new_user_matrix = {}
+    if len(new_movie_buf)!=0:
+        new_match_row_movie = {ii:i for ii,i in enumerate(new_movie_buf)}
+        new_match_movie_row = {i:ii for ii,i in enumerate(new_movie_buf)}   
+    else:
+        new_match_row_movie = {}
+        new_match_movie_row = {}
     return test_matrix,new_match_user_row,new_match_row_user,new_user_matrix,new_match_row_movie,new_match_movie_row
 
 def df_to_matrix(X,match_user_row,match_element_row, is_censor = True, delimiter = 4):
