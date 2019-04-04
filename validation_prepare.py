@@ -209,6 +209,8 @@ def df_to_matrix(X,match_user_row,match_element_row, is_censor = True, delimiter
         if is_censor:
             Y[(Y<delimiter)] = -1
             Y[(Y>=delimiter)] = 1
+        else:
+            Y = Y+1 #  на всякий случай, а не то поделим что-нибудь на 0
         Y['users'] = Y.index.get_level_values(0).map(match_user_row)
         Y['items'] = Y.index.get_level_values(1).map(match_element_row)
         Y.dropna(subset = ['users','items'],inplace = True)
@@ -249,7 +251,7 @@ class FeatureExtractor(TransformerMixin):
         # Вообще фильмов здесь намного больше дб, наверное стоит как-то смеппить признак 1
         # но для обычных рекомендаций это не так уж и важно.
         self.train_movie_match_movie_row = {i:ii for ii,i in enumerate(np.unique(watch_actions_train.index.get_level_values(1)))}
-        
+        self.train_movie_match_row_movie = {ii:i for ii,i in enumerate(np.unique(watch_actions_train.index.get_level_values(1)))}
         
         
         return self
