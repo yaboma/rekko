@@ -273,7 +273,7 @@ class FeatureExtractor(TransformerMixin):
                 part_of_train = X.loc[X.action =='watch',self.target_col_name].groupby(level = [0,1]).mean().to_frame()
         else: 
             part_of_train = X[self.target_col_name].to_frame()
-        res = df_to_matrix(part_of_train,self.match_user_row,self.train_movie_match_movie_row,self.delimiter)
+        res = df_to_matrix(part_of_train,self.match_user_row,self.train_movie_match_movie_row,self.is_censor,self.delimiter)
         return res
 class ColdFeatureExtractor(TransformerMixin):
     def __init__(self,fitted_FE):
