@@ -5,7 +5,7 @@ import pickle
 from scipy.sparse import coo_matrix,vstack,hstack
 from sklearn.feature_extraction.text import CountVectorizer
 import tqdm
-
+import average_precision
 
 from sklearn.base import TransformerMixin
 
@@ -229,7 +229,7 @@ def df_to_matrix(X,match_user_row,match_element_row, is_censor = True, delimiter
         return Z
 
 class FeatureExtractor(TransformerMixin):
-    def __init__(self,all_about_movie,bag_of_attr,is_censor = True,delimiter = 4, mode = 'rating',target_col_name = 'rating'):
+    def __init__(self,all_about_movie,bag_of_attr,is_censor = True,delimiter = 4, mode = 'rating',target_col_name = 'rating',is_filtered = True):
         self.all_about_movie = all_about_movie
         self.movie_attr_matrix = all_about_movie['movie_attr_matrix']
         self.movie_match_columns_attr = all_about_movie['movie_columns_match']
@@ -241,9 +241,14 @@ class FeatureExtractor(TransformerMixin):
         self.delimiter = delimiter
         self.mode = mode
         self.target_col_name = target_col_name
+
+        self.is_filtered = is_filtered
         self.bag_of_attr = bag_of_attr
     def fit(self,X):
-        watch_actions_train = X[X['action'] == 'watch']
+        if self.is_filtered:
+            watch_actions_train = X[X['action'] == 'watch']
+        else:
+            watch_actions_train = X.copy()
         # Сначала нам нужна матрица из всех просмотренных фильмов в трейне и меппинги оттуда 
         # - это исчерпывающая информация известная на конец трейна
         res = get_users_features(watch_actions_train,self.bag_of_attr)
@@ -261,10 +266,13 @@ class FeatureExtractor(TransformerMixin):
         
         return self
     def transform(self,X,y = None,):
-        if self.mode == 'rating':
-            part_of_train = X.loc[X.action =='rate',self.target_col_name].groupby(level = [0,1]).mean().to_frame() 
-        elif self.mode == 'duration':
-            part_of_train = X.loc[X.action =='watch',self.target_col_name].groupby(level = [0,1]).mean().to_frame()
+        if self.is_filtered:
+            if self.mode == 'rating':
+                part_of_train = X.loc[X.action =='rate',self.target_col_name].groupby(level = [0,1]).mean().to_frame() 
+            elif self.mode == 'duration':
+                part_of_train = X.loc[X.action =='watch',self.target_col_name].groupby(level = [0,1]).mean().to_frame()
+        else: 
+            part_of_train = X[self.target_col_name].to_frame()
         res = df_to_matrix(part_of_train,self.match_user_row,self.train_movie_match_movie_row,self.delimiter)
         return res
 class ColdFeatureExtractor(TransformerMixin):
@@ -285,7 +293,10 @@ class ColdFeatureExtractor(TransformerMixin):
     def fit(self,X):
         # Задача вычленить фильмы из трейна из большой матрицы фильмов и перенумеровать id
         # Здесь же когда-нибудь появтся новинки
-        self.movie_train = np.unique(X[X['action'] == 'watch'].index.get_level_values(1))
+        if self.fitted_FE.is_filtered:
+            self.movie_train = np.unique(X[X['action'] == 'watch'].index.get_level_values(1))
+        else:
+            self.movie_train = np.unique(X.index.get_level_values(1))
         
         # Теперь нужна матрица атрибутов фильмов для юзера
         self.attr_train_map = list(self.fitted_FE.match_feature_columns.keys())
@@ -299,12 +310,14 @@ class ColdFeatureExtractor(TransformerMixin):
         return self
     def transform(self,X,y = None,):
         # Сначала надо получить список не новинок, доступных на конец трейна
-        #test_user_matrix,test_match_user_row,new_match_row_user,new_user_matrix,new_match_row_movie,new_match_movie_row= 
-        if self.fitted_FE.mode == 'rating':
-            part_of_train = X.loc[X.action =='rate',self.fitted_FE.target_col_name].groupby(level = [0,1]).mean().to_frame() 
-        elif self.fitted_FE.mode == 'duration':
-            part_of_train = X.loc[X.action =='watch',self.fitted_FE.target_col_name].groupby(level = [0,1]).mean().to_frame()
-        
+        #test_user_matrix,test_match_user_row,new_match_row_user,new_user_matrix,new_match_row_movie,new_match_movie_row=
+        if self.fitted_FE.is_filtered: 
+            if self.fitted_FE.mode == 'rating':
+                part_of_train = X.loc[X.action =='rate',self.fitted_FE.target_col_name].groupby(level = [0,1]).mean().to_frame() 
+            elif self.fitted_FE.mode == 'duration':
+                part_of_train = X.loc[X.action =='watch',self.fitted_FE.target_col_name].groupby(level = [0,1]).mean().to_frame()
+        else:
+            part_of_train = X[self.fitted_FE.target_col_name].to_frame()
         
         res = get_cold_start_matrix(part_of_train,self.fitted_FE.match_user_row,
                              self.fitted_FE.match_feature_columns,
@@ -353,6 +366,11 @@ class ColdFeatureExtractor(TransformerMixin):
         
         # Теперь набор атрибутов и 
         return res_dict
+
+def metric(true_data, predicted_data, k=20):
+    true_data_set = {k: set(v) for k, v in true_data.items()}
+
+    return average_precision.average_precision(true_data_set, predicted_data, k=k)
 
 if __name__ == '__main__':
     # Получили фичи для фильмов
