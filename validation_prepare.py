@@ -215,7 +215,7 @@ def df_to_matrix(X,match_user_row,match_element_row, is_censor = True, delimiter
             Y[(Y<delimiter)] = -1
             Y[(Y>=delimiter)] = 1
         else:
-            Y = Y+1 #  на всякий случай, а не то поделим что-нибудь на 0
+            pass#Y = Y+1 #  на всякий случай, а не то поделим что-нибудь на 0
         Y['users'] = Y.index.get_level_values(0).map(match_user_row)
         Y['items'] = Y.index.get_level_values(1).map(match_element_row)
         Y.dropna(subset = ['users','items'],inplace = True)
@@ -229,7 +229,7 @@ def df_to_matrix(X,match_user_row,match_element_row, is_censor = True, delimiter
         return Z
 
 class FeatureExtractor(TransformerMixin):
-    def __init__(self,all_about_movie,bag_of_attr,is_censor = True,delimiter = 4, mode = 'rating',target_col_name = 'rating',is_filtered = True):
+    def __init__(self,all_about_movie,bag_of_attr,is_censor = True,delimiter = 4, mode = 'rating',target_col_name = 'rating',is_filtered = True,is_filtered_action = True):
         self.all_about_movie = all_about_movie
         self.movie_attr_matrix = all_about_movie['movie_attr_matrix']
         self.movie_match_columns_attr = all_about_movie['movie_columns_match']
@@ -243,9 +243,10 @@ class FeatureExtractor(TransformerMixin):
         self.target_col_name = target_col_name
 
         self.is_filtered = is_filtered
+        self.is_filtered_action = is_filtered_action
         self.bag_of_attr = bag_of_attr
     def fit(self,X):
-        if self.is_filtered:
+        if self.is_filtered_action:
             watch_actions_train = X[X['action'] == 'watch']
         else:
             watch_actions_train = X.copy()
@@ -271,6 +272,8 @@ class FeatureExtractor(TransformerMixin):
                 part_of_train = X.loc[X.action =='rate',self.target_col_name].groupby(level = [0,1]).mean().to_frame() 
             elif self.mode == 'duration':
                 part_of_train = X.loc[X.action =='watch',self.target_col_name].groupby(level = [0,1]).mean().to_frame()
+            elif self.mode == 'not_null':
+                part_of_train = X.loc[~X[self.target_col_name].isnull(),self.target_col_name].groupby(level = [0,1]).mean().to_frame()
         else: 
             part_of_train = X[self.target_col_name].to_frame()
         res = df_to_matrix(part_of_train,self.match_user_row,self.train_movie_match_movie_row,self.is_censor,self.delimiter)
@@ -293,7 +296,7 @@ class ColdFeatureExtractor(TransformerMixin):
     def fit(self,X):
         # Задача вычленить фильмы из трейна из большой матрицы фильмов и перенумеровать id
         # Здесь же когда-нибудь появтся новинки
-        if self.fitted_FE.is_filtered:
+        if self.fitted_FE.is_filtered_action:
             self.movie_train = np.unique(X[X['action'] == 'watch'].index.get_level_values(1))
         else:
             self.movie_train = np.unique(X.index.get_level_values(1))
@@ -316,6 +319,8 @@ class ColdFeatureExtractor(TransformerMixin):
                 part_of_train = X.loc[X.action =='rate',self.fitted_FE.target_col_name].groupby(level = [0,1]).mean().to_frame() 
             elif self.fitted_FE.mode == 'duration':
                 part_of_train = X.loc[X.action =='watch',self.fitted_FE.target_col_name].groupby(level = [0,1]).mean().to_frame()
+            elif self.fitted_FE.mode == 'not_null':
+                part_of_train = X.loc[~X[self.fitted_FE.target_col_name].isnull(),self.fitted_FE.target_col_name].groupby(level = [0,1]).mean().to_frame()
         else:
             part_of_train = X[self.fitted_FE.target_col_name].to_frame()
         
