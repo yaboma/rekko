@@ -65,9 +65,10 @@ def get_train_test(actions,mode = 'by_time',perc = (0.6,0.2,0.2)):
     с обрезанной длительностью - но насрать
     '''
     X = actions.copy()
+    X['ones'] = 1
+    X['increment'] = np.arange(len(X))
     if mode == 'by_time':
-        X['ones'] = 1
-        X['increment'] = np.arange(len(X))
+        
         by_time = X.groupby(level = 2)['ones'].sum()
         by_time.sort_index(inplace = True)
         #проверили, что вроде как все ок и равномерно во времени
@@ -81,8 +82,20 @@ def get_train_test(actions,mode = 'by_time',perc = (0.6,0.2,0.2)):
             mx = by_time_temp.max()
             cur+=perc[i]
             idx.append(X.loc[(slice(None),slice(None),slice(mn,mx)),'increment'].values)
-            
-        return idx
+
+    elif mode == 'by_time_wm':
+        idx = []
+        cur = 0
+        by_time = np.sort(X['first_ts'])
+        for i in range(len(perc)):
+#             print(np.round((cur)*len(by_time)),np.round((cur+perc[i])*len(by_time)))
+            by_time_temp = by_time[int(np.round((cur)*len(by_time))):int(np.round((cur+perc[i])*len(by_time)))]
+            mn = np.min(by_time_temp)
+            mx = np.max(by_time_temp)
+            cur+=perc[i]
+            idx.append(X.loc[(X['first_ts']<mx) & (X['first_ts']>=mn),'increment'].values)
+   
+    return idx
 
 
 def get_users_features(actions,bag_of_attr):
